@@ -1,0 +1,3 @@
+Location: '/Users/audreyburggraf/Desktop/THESIS/Figures'
+
+plt.savefig('/Users/audreyburggraf/Desktop/THESIS/Figures/file_name.pdf')

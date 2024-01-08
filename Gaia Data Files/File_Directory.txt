@@ -1,0 +1,33 @@
+How to call a file from a different directory : 
+    directory = '/Users/audreyburggraf/Desktop/THESIS/Gaia Data Files/'
+
+    data_wo_cross = pd.read_csv(directory + 'data_wo_cross.csv')
+    
+    
+----------------------------------------------------------------------------------------------------------------------------------
+
+File Directory:
+
+data_wo_cross
+SELECT TOP 1000000000 source_id, parallax, bp_rp, phot_g_mean_mag 
+FROM gaiadr3.gaia_source 
+WHERE parallax > 10
+
+data_w_cross
+SELECT TOP 500000 gaia.source_id, gaia.parallax, gaia.bp_rp, gaia.phot_g_mean_mag, tmass.* 
+FROM gaiadr3.gaia_source AS gaia 
+JOIN gaiadr3.tmass_psc_xsc_best_neighbour AS xmatch USING (source_id) 
+JOIN gaiadr3.tmass_psc_xsc_join AS xjoin USING (clean_tmass_psc_xsc_oid) 
+JOIN gaiadr1.tmass_original_valid AS tmass ON 
+   xjoin.original_psc_source_id = tmass.designation 
+WHERE parallax > 10 
+
+
+gaia_data 
+SELECT TOP 500000 gaia.source_id, gaia.ra, gaia.dec, gaia.pmra, gaia.pmdec, gaia.parallax, gaia.bp_rp, gaia.phot_g_mean_mag, tmass.* 
+FROM gaiadr3.gaia_source AS gaia 
+JOIN gaiadr3.tmass_psc_xsc_best_neighbour AS xmatch USING (source_id) 
+JOIN gaiadr3.tmass_psc_xsc_join AS xjoin USING (clean_tmass_psc_xsc_oid) 
+JOIN gaiadr1.tmass_original_valid AS tmass ON 
+   xjoin.original_psc_source_id = tmass.designation 
+WHERE parallax > 10 
