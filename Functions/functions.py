@@ -7,6 +7,7 @@ from scipy.interpolate import interp1d
 
 # import unit conversions 
 from unit_conversion_functions import *
+from printing_functions import *
 
 
 # units
@@ -287,17 +288,17 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     n_object = 1                  # number of objects 
     
     print("N for synthetic data: ", N_synthetic) # print out N_synthetic, the number of timesteps for the synthetic data(small)
-    print("N for model data: ", N_model)        # print out N_model, the number of timesteps for the synthetic data (larger)
+    print("N for model data    : ", N_model)     # print out N_model, the number of timesteps for the synthetic data (larger)
     print(" ")
     
     # set time array for the synthetic and model data 
     times_synthetic = np.linspace(0, 5, N_synthetic)  # Set the times array for the synthetic data using N [years]
-    times_model = np.linspace(0, 5, N_model)  # Set the times array for the model data using N [years]
+    times_model     = np.linspace(0, 5, N_model)      # Set the times array for the model data using N [years]
     # ---------------------------------------------------------------------------
     
     # Find planetary and Gaia parameters 
     # ---------------------------------------------------------------------------
-    # planetary parameters[unitless, rad, rad, unitless, M_Jup, years, years]
+    # planetary parameters [unitless, rad, rad, unitless, M_Jup, years, years]
     e, omega, Omega, cos_i, m_planet, P_orb, t_peri  = planetary_params(n_object, 0.1, 10) # 0.1 and 10 are in years 
     
     # Gaia parameters [deg, deg, mas/year, mas.year, mas, M_sun]
@@ -307,25 +308,22 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     alpha0, delta0, parallax = np.array([1]), np.array([2]), np.array([50]) # degrees, degrees, mas
     
     # Print out parameters
-    planetary_names = ['e', 'omega', 'Omega', 'cos_i', 'm_planet', 'P_orb', 't_peri']
     planetary_values = [e[0], omega[0], Omega[0], cos_i[0], m_planet[0], P_orb[0], t_peri[0]]
-    planetary_units = ['unitless', 'radians', 'radians', 'unitless', 'Jupiter masses', 'years', 'years']
     
     # Define name and units for each Gaia parameter
-    gaia_names = ['alpha0', 'delta0','mu_alpha', 'mu_delta', 'parallax', 'm_star']
     gaia_values = [alpha0[0], delta0[0],mu_alpha[0], mu_delta[0], parallax[0], m_star[0]]
-    gaia_units = ['degrees', 'degrees', 'mas/year', 'mas/year', 'mas', 'M_sun', '(array)']
     
     # Print out value and its unit
     if print_params in ['both', 'planet']:
-        print("Planetary parameters:")
-        print_parameters(planetary_names, planetary_values, planetary_units)
+        print_parameters(planetary_values, 'planetary')
 
     if print_params in ['both', 'gaia']:
         print(" ")
-        print("Gaia parameters:")
-        print_parameters(gaia_names, gaia_values, gaia_units)
+        print_parameters(gaia_values, 'gaia')
         print("x = ", x[0])
+        
+        
+        
     # ---------------------------------------------------------------------------
     
     # Calculate the astrometric signature to check
@@ -363,10 +361,27 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
 
     errors = np.zeros(N_synthetic) + df.sigma_fov[x[0]] # [uas]
     
+    # Break down return statement 
+    # ---------------------------------------------------------------------------
+    # setting the no planet and 1 planet parameter arrays in their proper units 
     np_parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax]
-    parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax, m_star, e, omega, Omega, cos_i, m_planet, P_orb, t_peri]
+    parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri, m_star]
     
-    return np_parameters, parameters, prop_ra_synthetic, prop_dec_synthetic, parallax_ra_synthetic, parallax_dec_synthetic, planetary_ra_synthetic, planetary_dec_synthetic, prop_ra_model, prop_dec_model, parallax_ra_model, parallax_dec_model, planetary_ra_model, planetary_dec_model, noise_ra, noise_dec, errors, times_synthetic, times_model # [all in uas]
+    # parameter_result includes the no planet and 1 planet parameters in their proper units 
+    parameter_result = [np_parameters, parameters]
+    
+    # model_results includes the signal components and times for the synthetic in [uas] and [years]
+    synthetic_result = [prop_ra_synthetic, prop_dec_synthetic, parallax_ra_synthetic, parallax_dec_synthetic, planetary_ra_synthetic, planetary_dec_synthetic, times_synthetic]
+    
+    # model_results includes the signal components and times for the model in [uas] and [years]
+    model_result = [prop_ra_model, prop_dec_model, parallax_ra_model, parallax_dec_model, planetary_ra_model, planetary_dec_model, times_model]
+    
+    # error_result includes noise in ra and dec direction plus error (same for ra and dec) in [uas]
+    error_result = [noise_ra, noise_dec, errors]
+    # ---------------------------------------------------------------------------
+    
+    # return statement 
+    return (parameter_result, synthetic_result, model_result, error_result) 
 # -----------------------------------------------------------------------------------------------------------------------------
 
 
@@ -458,9 +473,3 @@ def calculate_distance(parallax_mas):
     return distance_pc
 # -----------------------------------------------------------------------------------------------------------------------------
 
-
-
-# other 
-def print_parameters(parameter_names, values, units):
-    for name, value, unit in zip(parameter_names, values, units):
-        print(f"{name}: {value}  [{unit}]")
