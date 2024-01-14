@@ -14,8 +14,8 @@ def signal_func(pars, times, signal_type):
         alpha0, delta0, mu_alpha, mu_delta, parallax = pars
         
     elif signal_type == 'wp':
-        # [deg,   deg, mas/year, mas/year, mas, solar masses, unitless, rad, rad, unitless, Jupiter masses, years, years]
-        alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri, m_star = pars
+        # [deg,   deg, mas/year, mas/year, mas, solar masses, unitless, rad, rad, unitless, Jupiter masses, log10(years), years]
+        alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, log_P, t_peri, m_star = pars
     else:
         raise ValueError("Invalid signal_type. Use 'np' or 'wp'.")
         
@@ -35,12 +35,12 @@ def signal_func(pars, times, signal_type):
         
     elif signal_type == 'wp':
         # Planet signal
-        planetary_pars = parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri, m_star # [various]
+        planetary_pars = parallax, e, omega, Omega, cos_i, m_planet, log_P, t_peri, m_star  # [various]
         planetary_ra, planetary_dec = generate_planet_signal(*planetary_pars, times)        # [uas]
     
         # add all three to find full signal
         signal_ra  = prop_ra  + parallax_ra   + planetary_ra  
-        signal_dec = prop_dec + parallax_dec + planetary_dec
+        signal_dec = prop_dec + parallax_dec  + planetary_dec
     else:
         raise ValueError("Invalid signal_type. Use 'np' or 'wp'.")
    
@@ -122,9 +122,7 @@ def no_planet_fit(np_parameters, signal_ra_synthetic, signal_dec_synthetic, nois
 
 # ----------------------------- W I T H - P L A N E T - F I T ----------------------------------------------
 def one_planet_fit(parameters, signal_ra_synthetic, signal_dec_synthetic, noise_ra, noise_dec, times): 
-#     alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri, m_star = parameters
-#     fitting_params = [alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri] 
-    
+
     # combining noise in ra and dec directions 
     noise = np.concatenate((noise_ra, noise_dec))
     
@@ -145,7 +143,7 @@ def one_planet_fit(parameters, signal_ra_synthetic, signal_dec_synthetic, noise_
               (0, 2*np.pi),                   # Omega     [rad]
               (-1,1),                         # cos_i     [unitless]
               (0,15),                         # LOG SIGNAL AMOLITUDE m_planet  [Jupiter masses]
-              (-np.inf, np.inf),              # P_orb     [years]
+              (-np.inf, np.inf),              # log_P     [log10(years_]
               (-np.inf, np.inf))              # t_peri    [years]
         
     # getting best/fitted values 

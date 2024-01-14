@@ -26,7 +26,7 @@ from printing_functions import *
 # Omega    = [radians] 
 # cos_i    = [unitless]
 # m_planet = [Jupiter masses] 
-# P        = [years]
+# log_P    = [log10(years)]
 # t_peri   = [years]
 
 
@@ -108,7 +108,7 @@ def generate_parallax_signal(alpha0, delta0, parallax, times, a_earth =1):
 
     return prlx_term_ra, prlx_term_dec
 # -----------------------------------------------------------------------------------------------------------------------------
-def calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, P_orb):
+def calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, log_P):
     """
     Calculate the Thiele-Innes constants for a binary star system with an orbiting planet.
 
@@ -122,7 +122,7 @@ def calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, P_or
     parallax (float): Parallax of the system in milliarcseconds (mas).
     m_planet (float): Mass of the planet in Jupiter masses (Mjupiter).
     m_star (float): Mass of the star in solar masses (Msun).
-    P_orb (float): Orbital period of the planet in years.
+    log_P (float): Orbital period of the planet in log10(years).
 
     Returns:
     tuple: A tuple containing Thiele-Innes constants:
@@ -136,9 +136,10 @@ def calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, P_or
     
     # Find distance in pc from parallax in mas
     d = calculate_distance(parallax) # [pc]
+    
         
     # Find alpha in mas from m_planet [M_Jup], m_star [M_sun], P [years], d [pc]
-    alpha = astrometric_signature(m_planet, m_star, P_orb, d) # [mas]
+    alpha = astrometric_signature(m_planet, m_star, log_P, d) # [mas]
     
     # Find sin(inclination)
     sin_i = np.sqrt(1 - cos_i**2)  # [unitless]
@@ -157,7 +158,7 @@ def calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, P_or
 # -----------------------------------------------------------------------------------------------------------------------------
 # SWITCH TO LOG G
 
-def generate_planet_signal(parallax, e, omega, Omega, cos_i, m_planet, m_star, P_orb, t_peri, times):
+def generate_planet_signal(parallax, e, omega, Omega, cos_i, m_planet, m_star, log_P, t_peri, times):
     """
     Generates the astrometric signal of a planet orbiting a star.
 
@@ -169,7 +170,7 @@ def generate_planet_signal(parallax, e, omega, Omega, cos_i, m_planet, m_star, P
     - cos_i (float): Cosine of the inclination angle (unitless).
     - LOG m_planet (float): Mass of the planet in Jupiter masses (Mjupiter).
     - m_star (float): Mass of the star in Solar masses (Msun).
-    - LOG P_orb (float): Orbital period of the planet in years.
+    - log_P (float): Orbital period of the planet in log10(years).
     - t_peri (float): Time of periastron passage in years.
     - times (array-like): Array of time values at which to compute the signal in years.
 
@@ -179,8 +180,11 @@ def generate_planet_signal(parallax, e, omega, Omega, cos_i, m_planet, m_star, P
     """
     
     # Thiele-Innes constants 
-    B, A, F, G, _, _ = calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, P_orb) # [uas]
+    B, A, F, G, _, _ = calculate_thiele_innes(omega, Omega, cos_i, parallax, m_planet, m_star, log_P) # [uas]
     
+    # find P_orb in years from log10(P) in log10(years)
+    P_orb = 10**log_P                           # [years]
+        
     # Anomalies?
     M = (2*np.pi)*(times - t_peri)/P_orb   # [radians]
     E = np.vectorize(rebound.M_to_E)(e,M)  # [radians]
@@ -193,10 +197,6 @@ def generate_planet_signal(parallax, e, omega, Omega, cos_i, m_planet, m_star, P
 
     return plnt_term_ra, plnt_term_dec
 # ----------------------------------------------------------------------------------------------------------------------------
-
-
-
-
 
 # parameter functions 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def planetary_params(N, min_P, max_P):
         - Omega (numpy.ndarray): Longitude of ascending node in radians.
         - cos_i (numpy.ndarray): Cosine of the orbital inclination angle (unitless).
         - m_planet (numpy.ndarray): Mass of the planets in Jupiter masses (M_Jupiter).
-        - P (numpy.ndarray): Orbital period of the planets in years.
+        - log_P (numpy.ndarray): Orbital period of the planets in log10(years).
         - t_peri (numpy.ndarray): Time of perigee passage in years.
     """
     # Setting random seed
@@ -234,11 +234,12 @@ def planetary_params(N, min_P, max_P):
     # Period and time of perigee passage
     p1 = np.log10(min_P)
     p2 = np.log10(max_P)
-    P = 10**np.random.uniform(p1, p2, N)       # [years]
-
+    log_P = np.random.uniform(p1, p2, N)       # [log10(years)]
+    
+    P = 10**log_P                              # [years]
     t_peri = np.random.uniform(0, P, N)        # [years]
 
-    return e, omega, Omega, cos_i, m_planet, P, t_peri
+    return e, omega, Omega, cos_i, m_planet, log_P, t_peri
 # -----------------------------------------------------------------------------------------------------------------------------
 def gaia_params(df, N):
     """
@@ -298,8 +299,8 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     
     # Find planetary and Gaia parameters 
     # ---------------------------------------------------------------------------
-    # planetary parameters [unitless, rad, rad, unitless, M_Jup, years, years]
-    e, omega, Omega, cos_i, m_planet, P_orb, t_peri  = planetary_params(n_object, 0.1, 10) # 0.1 and 10 are in years 
+    # planetary parameters [unitless, rad, rad, unitless, M_Jup, log10(years), years]
+    e, omega, Omega, cos_i, m_planet, log_P, t_peri  = planetary_params(n_object, 0.1, 10) # 0.1 and 10 are in years
     
     # Gaia parameters [deg, deg, mas/year, mas.year, mas, M_sun]
     alpha0, delta0, mu_alpha, mu_delta, parallax, m_star, x = gaia_params(df, n_object)
@@ -308,7 +309,7 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     alpha0, delta0, parallax = np.array([1]), np.array([2]), np.array([50]) # degrees, degrees, mas
     
     # Print out parameters
-    planetary_values = [e[0], omega[0], Omega[0], cos_i[0], m_planet[0], P_orb[0], t_peri[0]]
+    planetary_values = [e[0], omega[0], Omega[0], cos_i[0], m_planet[0], log_P[0], t_peri[0]]
     
     # Define name and units for each Gaia parameter
     gaia_values = [alpha0[0], delta0[0],mu_alpha[0], mu_delta[0], parallax[0], m_star[0]]
@@ -329,9 +330,9 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     # Calculate the astrometric signature to check
     # ---------------------------------------------------------------------------
     d = calculate_distance(parallax)
-    alpha = astrometric_signature(m_planet, m_star, P_orb, d)
+    alpha = astrometric_signature(m_planet, m_star, log_P, d)
     print(" ")
-    print("astrometric_signature(",m_planet, m_star, P_orb, d,") = ", alpha, "[uas]")
+    print("astrometric_signature(",m_planet, m_star, log_P, d,") = ", alpha, "[uas]")
     # ---------------------------------------------------------------------------
     
     # Find signal components
@@ -345,7 +346,7 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     parallax_ra_model, parallax_dec_model = generate_parallax_signal(alpha0, delta0, parallax, times_model)# [uas]
     
     # Planet signal
-    planetary_pars = parallax, e, omega, Omega, cos_i, np.log10(m_planet), m_star, np.log10(P_orb), t_peri
+    planetary_pars = parallax, e, omega, Omega, cos_i, np.log10(m_planet), m_star, log_P, t_peri
     planetary_ra_synthetic, planetary_dec_synthetic = generate_planet_signal(*planetary_pars, times_synthetic) # [uas]
     planetary_ra_model, planetary_dec_model = generate_planet_signal(*planetary_pars, times_model) # [uas]
     # ---------------------------------------------------------------------------
@@ -365,7 +366,7 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     # ---------------------------------------------------------------------------
     # setting the no planet and 1 planet parameter arrays in their proper units 
     np_parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax]
-    parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, P_orb, t_peri, m_star]
+    parameters = [alpha0, delta0, mu_alpha, mu_delta, parallax, e, omega, Omega, cos_i, m_planet, log_P, t_peri, m_star]
     
     # parameter_result includes the no planet and 1 planet parameters in their proper units 
     parameter_result = [np_parameters, parameters]
@@ -387,7 +388,7 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
-def astrometric_signature(m_planet, m_star, P, d):
+def astrometric_signature(m_planet, m_star, log_P, d):
     """
     Calculate the astrometric signature of a planet orbiting a star.
 
@@ -397,7 +398,7 @@ def astrometric_signature(m_planet, m_star, P, d):
     Parameters:
     m_planet (float): Mass of the planet in jupiter masses.
     m_star (float): Mass of the star in solar masses.
-    P (float): Orbital period of the planet in years.
+    log_P (float): Orbital period of the planet in log10(years).
     d (float): Distance between the star and observer in parsecs.
 
     Returns:
@@ -407,9 +408,8 @@ def astrometric_signature(m_planet, m_star, P, d):
     # change planet mass to solar masses 
     m_planet = jupiter_to_solar_mass(m_planet) # [M_sun] from [Jupiter masses]
     
-    
     # Calculate the semi-major axis of the planet's orbit in AU
-    a = calculate_semi_major_axis(P, m_star)  # [AU]
+    a = calculate_semi_major_axis(log_P, m_star)  # [AU]
 
 
     # Calculate the astrometric signature (alpha) in arcseconds
@@ -443,18 +443,37 @@ def sigma_fov(df):
 
     df["sigma_fov"] = interp_sigma(df.phot_g_mean_mag) # uas
 # -----------------------------------------------------------------------------------------------------------------------------
-def calculate_semi_major_axis(P, m_star):
+import math
+
+def calculate_semi_major_axis(log_P, m_star):
     """
     Calculate the semi-major axis using the provided formula.
 
     Parameters:
-    - P (float): Orbital period of the planet in years.
+    - log_P (float): Orbital period of the planet in log10(years).
     - m_star (float): Mass of the star in solar masses.
 
     Returns:
     - float: Semi-major axis calculated based on the input parameters, in astronomical units (AU).
     """
-    a = (P**2 * m_star)**(1/3) # [AU]
+    
+    # Change log10(P) to P [log10(years) to years]
+    P_orb = 10**log_P
+    
+    if math.isnan(P_orb) or math.isnan(m_star):
+    # Handle the case where P_orb or m_star is NaN
+    # For example, set a default value, print a warning, or raise an exception.
+
+        # Option 2: Print a warning
+        print("Warning: P_orb or m_star is NaN.")
+
+    else:
+        # Perform the calculation if neither P_orb nor m_star is NaN
+        a = (P_orb**2 * m_star)**(1/3)
+   
+    
+#     a = (P_orb**2 * m_star)**(1/3) # [AU]
+    
     return a
 # -----------------------------------------------------------------------------------------------------------------------------
 def calculate_distance(parallax_mas):

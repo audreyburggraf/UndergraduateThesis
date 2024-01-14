@@ -2,8 +2,8 @@
 import numpy as np
 
 def print_parameters(values, return_type):
-    planetary_names = ['e', 'omega', 'Omega', 'cos_i', 'm_planet', 'P_orb', 't_peri']
-    planetary_units = ['unitless', 'radians', 'radians', 'unitless', 'Jupiter masses', 'years', 'years']
+    planetary_names = ['e', 'omega', 'Omega', 'cos_i', 'm_planet', 'log10(P_orb)', 't_peri']
+    planetary_units = ['unitless', 'radians', 'radians', 'unitless', 'Jupiter masses', 'log10(years)', 'years']
     
     gaia_names = ['alpha0', 'delta0', 'mu_alpha', 'mu_delta', 'parallax', 'm_star']
     gaia_units = ['degrees', 'degrees', 'mas/year', 'mas/year', 'mas', 'M_sun', '(array)']
@@ -27,7 +27,7 @@ def print_parameters(values, return_type):
 def print_parameter_differences(true_parameters, fitted_parameters, return_type):
     # Define np_parameter_names and parameter_names within the function
     np_parameter_names = ['alpha0', 'delta0', 'mu_alpha', 'mu_delta', 'parallax']
-    wp_parameter_names = ['alpha0', 'delta0', 'mu_alpha', 'mu_delta', 'parallax','e', 'omega', 'Omega', 'cos_i', 'm_planet', 'P_orb', 't_peri']
+    wp_parameter_names = ['alpha0', 'delta0', 'mu_alpha', 'mu_delta', 'parallax','e', 'omega', 'Omega', 'cos_i', 'm_planet', 'log10(P_orb)', 't_peri']
 
     # Use the defined names within the function
     if return_type == 'np':
