@@ -273,7 +273,7 @@ def gaia_params(df, N):
     m_star = df.stellar_mass[x]        # [M_sun]
     
     #return alpha0, delta0, Delta_alpha_0, Delta_delta_0, mu_alpha, mu_delta, parallax, m_star, x 
-    return alpha0.values, delta0.values,mu_alpha.values, mu_delta.values, parallax.values, m_star.values, x
+    return alpha0.values, delta0.values, mu_alpha.values, mu_delta.values, parallax.values, m_star.values, x
 
 # -----------------------------------------------------------------------------------------------------------------------------
 
@@ -283,14 +283,15 @@ def gaia_params(df, N):
 # THIS WILL ONLY WORK FOR N_OBJECT = 1 FOR NOW
 # ADD UNITS 
 
-def find_signal_components(df, N_synthetic, N_model, print_params):  
+def find_signal_components(df, N_synthetic, N_model, print_params='neither', print_other=False):  
     # Setting initial parameters:
     # ---------------------------------------------------------------------------
     n_object = 1                  # number of objects 
     
-    print("N for synthetic data: ", N_synthetic) # print out N_synthetic, the number of timesteps for the synthetic data(small)
-    print("N for model data    : ", N_model)     # print out N_model, the number of timesteps for the synthetic data (larger)
-    print(" ")
+    if print_other:
+        print("N for synthetic data: ", N_synthetic) # print out N_synthetic, the number of timesteps for the synthetic data(small)
+        print("N for model data    : ", N_model)     # print out N_model, the number of timesteps for the synthetic data (larger)
+        print(" ")
     
     # set time array for the synthetic and model data 
     times_synthetic = np.linspace(0, 5, N_synthetic)  # Set the times array for the synthetic data using N [years]
@@ -331,8 +332,9 @@ def find_signal_components(df, N_synthetic, N_model, print_params):
     # ---------------------------------------------------------------------------
     d = calculate_distance(parallax)
     alpha = astrometric_signature(m_planet, m_star, log_P, d)
-    print(" ")
-    print("astrometric_signature(",m_planet, m_star, log_P, d,") = ", alpha, "[uas]")
+    if print_other:
+        print(" ")
+        print("astrometric_signature(", m_planet, m_star, log_P, d,") = ", alpha, "[uas]")
     # ---------------------------------------------------------------------------
     
     # Find signal components
@@ -443,7 +445,6 @@ def sigma_fov(df):
 
     df["sigma_fov"] = interp_sigma(df.phot_g_mean_mag) # uas
 # -----------------------------------------------------------------------------------------------------------------------------
-import math
 
 def calculate_semi_major_axis(log_P, m_star):
     """
@@ -460,21 +461,21 @@ def calculate_semi_major_axis(log_P, m_star):
     # Change log10(P) to P [log10(years) to years]
     P_orb = 10**log_P
     
-    if math.isnan(P_orb) or math.isnan(m_star):
-    # Handle the case where P_orb or m_star is NaN
-    # For example, set a default value, print a warning, or raise an exception.
-
-        # Option 2: Print a warning
-        print("Warning: P_orb or m_star is NaN.")
-
-    else:
-        # Perform the calculation if neither P_orb nor m_star is NaN
-        a = (P_orb**2 * m_star)**(1/3)
-   
+    try:
+        a = (P_orb**2 * m_star)**(1/3)  # [AU]
+    except Exception as e:
+        print("Error:", e)
+        print("P_orb:", P_orb)
+        print("m_star:", m_star)
+        raise  # re-raise the exception to see the traceback
+    
+    return a
+    
     
 #     a = (P_orb**2 * m_star)**(1/3) # [AU]
     
-    return a
+    
+#     return a
 # -----------------------------------------------------------------------------------------------------------------------------
 def calculate_distance(parallax_mas):
     """

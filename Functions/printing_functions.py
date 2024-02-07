@@ -20,8 +20,11 @@ def print_parameters(values, return_type):
         for name, value, unit in zip(gaia_names, values, gaia_units):
             print(f"{name.ljust(max_name_length)}: {value}  [{unit}]")  
         
+    elif return_type == 'neither':
+        return
     else:
-        raise ValueError("Invalid return_type. Use 'planetary' or 'gaia'.")
+        raise ValueError("Invalid return_type. Use 'planetary', 'gaia', or 'neither'.")
+
 
         
 def print_parameter_differences(true_parameters, fitted_parameters, return_type):

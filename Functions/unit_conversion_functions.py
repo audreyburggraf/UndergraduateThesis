@@ -1,6 +1,8 @@
 # This python file contains all unit conversion functions
 
 import numpy as np
+from astropy import units as u 
+
 
 # mass
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -215,15 +217,19 @@ def au_to_microarcseconds(distance_au, distance_pc):
 # -----------------------------------------------------------------------------------------------------------------------------
 def days_to_years(time_in_days):
     """
-    Convert time in days to years.
+    Convert time in days to years using astropy.
 
     Parameters:
     - time_in_days (float): Time in days.
 
     Returns:
-    float: Time converted to years.
+    Quantity: Time converted to years.
     """
-    days_per_year = 365.25  # Taking into account leap years
-    years = time_in_days / days_per_year
-    return years
+    time_in_years = time_in_days * u.day.to(u.year)
+    return time_in_years
+
+      # old version
+#     days_per_year = 365.25  # Taking into account leap years
+#     time_in_years = time_in_days / days_per_year
+#     return time_in_years
 # -----------------------------------------------------------------------------------------------------------------------------
