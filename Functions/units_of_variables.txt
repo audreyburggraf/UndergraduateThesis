@@ -1,0 +1,21 @@
+# GAIA PARAMETERS:
+# alpha0        = [degrees]
+# delta0        = [degrees]
+# mu_alpha      = [mas/year]
+# mu_delta      = [mas/year]
+# parallax      = [mas]
+# m_star        = [Solar masses]
+
+# PLANETARY PARAMETERS:
+# e        = [unitless]
+# omega    = [radians] 
+# Omega    = [radians] 
+# cos_i    = [unitless]
+# log_m_planet = [log10(Jupiter masses)] 
+# log_P    = [log10(years)]
+# t_peri   = [years]
+
+
+# t = [years]
+# alpha (astrometric signature) = [uas]
+# signals = [uas] (proper motion, parallax, planetary)
