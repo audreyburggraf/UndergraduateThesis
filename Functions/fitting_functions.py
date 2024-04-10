@@ -7,6 +7,9 @@ from scipy.optimize import minimize
 from functions import *
 from signal_functions import *
 
+from tqdm import tqdm
+import time
+
 
 # Normalized residuals function for the zero-planet fit 
 # ---------------------------------------------------------------------------------------------------------------
@@ -158,6 +161,13 @@ def one_planet_fit(inj_params_1P, m_star, signal_ra_synthetic, signal_dec_synthe
     # Perform optimization using Nelder-Mead method
     result_min_1P = minimize(fn, inj_params_1P, method='Nelder-Mead', bounds=bounds_1P)
     fitted_params_1P = result_min_1P.x
+    
+    # Add a condition to keep track of success of the fit 
+    success_1P_fit = int(result_min_1P.success)
+    
+  
+    
+    #pdb.set_trace()
 
     # Create the best-fit signal from the fitted parameters
     signal_ra_best, signal_dec_best = signal_func_1P(fitted_params_1P, m_star, times_synthetic)
@@ -167,13 +177,13 @@ def one_planet_fit(inj_params_1P, m_star, signal_ra_synthetic, signal_dec_synthe
     # Calculate the chi-squared value for the one-planet fit
     wp_chi_sq = find_chi_squared(signal_synthetic, signal_best, noise)
     
-    return fitted_params_1P, wp_chi_sq
+    return fitted_params_1P, wp_chi_sq, success_1P_fit
 # ---------------------------------------------------------------------------------------------------------------
 
 
 # Detection function
 # ---------------------------------------------------------------------------------------------------------------
-def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N): 
+def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, success_1P_fit, N): 
     """
     Determine the detection of a planet based on Bayesian Information Criterion (BIC) comparison and parameter fitting.
 
@@ -194,13 +204,13 @@ def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N)
     """
         
     # Calculate the two BIC values 
-    BIC_0P = -2 * np.log(0.5 * np_chi_sq) + 5 * np.log(N)
-    BIC_1P = -2 * np.log(0.5 * wp_chi_sq) + 12 * np.log(N)
+    BIC_0P = np_chi_sq + 5  * np.log(N) # gaussian equation -2*(-1/2 chi^2)
+    BIC_1P = wp_chi_sq + 12 * np.log(N)
     
     # Calculate Delta BIC 
-    Delta_BIC = BIC_0P - BIC_1P
+    Delta_BIC = BIC_1P - BIC_0P
     
-    # Check to see if the three conditions were met 
+    # Check to see if the four conditions were met 
     # ---------------------------------------------------------------------------  
     # Condition 1 : ΔBIC < -20
     condition_1 = Delta_BIC < -20
@@ -211,7 +221,12 @@ def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N)
     # Step 3: Recovered m_p within 5% error of injected m_p
     condition_3 = np.isclose(inj_params_1P[9][0], fitted_params_1P[9], rtol=0.05)
     
-    conditions_satisfied = np.array([condition_1, condition_2, condition_3], dtype=int)
+    # Step 4: Did minimize do the fit successfully
+    condition_4 = (success_1P_fit == 1)
+    
+    conditions_satisfied = np.array([condition_1, condition_2, condition_3, condition_4], dtype=int)
+    
+    # pdb.set_trace()
 
     # Combine all conditions into a binary array for detection
     detection = np.all(conditions_satisfied).astype(int)
@@ -221,7 +236,7 @@ def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N)
     return (BIC_0P, BIC_1P, Delta_BIC, detection, conditions_satisfied)
 # ---------------------------------------------------------------------------------------------------------------
 
-def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_file = False, print_detection_results = False): 
+def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, filename, save_to_file = False, print_detection_results = False): 
     """
     Perform multiple fitting iterations and determine the detection of a planet for each iteration.
 
@@ -238,7 +253,7 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_fil
     # Create an empty list to store data from each iteration
     data_list = []
     
-    for i in range(num_of_runs):
+    for i in tqdm(range(num_of_runs)):
     
         # Call the signal that finds parameters and makes the signal components and unpack its result statement 
         # ----------------------------------------------------------------------------------------
@@ -267,33 +282,27 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_fil
         # Find signal to noise - needs organization
         # ----------------------------------------------------------------------------------------
         # signal is astrometric_signal calculated with the injected parameters, or alpha 
-        # noise is ??
         
-        # Calculate the standard deviation of noise in the RA and Dec directions
-        noise_ra_std = np.std(noise_ra)
-        noise_dec_std = np.std(noise_dec)
-
-        # Calculate the overall standard deviation of noise
-        overall_noise_std = np.sqrt(noise_ra_std**2 + noise_dec_std**2)  # Combine RA and Dec noise in quadrature
-
-        # Alternatively, you can calculate the average standard deviation
-#         average_noise_std = (noise_ra_std + noise_dec_std) / 2  # Average of RA and Dec noise standard deviations
-        noise = overall_noise_std 
-   
+        
+        # THIS IS WHAT I WAS DOING FOR NOISE BEFORE 
+        # ----------------------------------------------------------------------------------------
+        noise = errors[0] * np.sqrt(2) # quadature
+        # ----------------------------------------------------------------------------------------
+  
         # it is scaled by a factor 
         # 10**inj_params_1P = inj P [years]
         # times_model.max() should = 5
         scaling_factor = np.sqrt(times_model.max()/10**inj_params_1P[10]) 
         
         # find S/N
-        SN = alpha/noise*scaling_factor
+        SN = alpha/noise*scaling_factor # unitless
         
         # ----------------------------------------------------------------------------------------
         
         # Calculate the observed function from the synthetic data and noise 
         # ----------------------------------------------------------------------------------------
-        signal_ra_obs  = prop_ra_synthetic  + parallax_ra_synthetic  + planetary_ra_synthetic  + noise_ra
-        signal_dec_obs = prop_dec_synthetic + parallax_dec_synthetic + planetary_dec_synthetic + noise_dec
+        signal_ra_obs  = prop_ra_synthetic  + parallax_ra_synthetic  + planetary_ra_synthetic  + noise_ra  # [uas]
+        signal_dec_obs = prop_dec_synthetic + parallax_dec_synthetic + planetary_dec_synthetic + noise_dec # [uas]
         # ----------------------------------------------------------------------------------------
         
         # Run the fitting functions 
@@ -306,7 +315,7 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_fil
             times_synthetic)
 
         # One planet fit 
-        fitted_params_1P, wp_chi_sq = one_planet_fit(
+        fitted_params_1P, wp_chi_sq, success_1P_fit = one_planet_fit(
             inj_params_1P,
             m_star,
             signal_ra_obs, signal_dec_obs,
@@ -317,7 +326,7 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_fil
         
         # Finding detection result 
         # ----------------------------------------------------------------------------------------
-        detection_result = detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N_synthetic)
+        detection_result = detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, success_1P_fit, N_synthetic)
 
         (np_BIC, wp_BIC, Delta_BIC, detection, conditions_satisfied) = detection_result
         
@@ -376,35 +385,42 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_fil
             'wpBIC': wp_BIC,
             'DeltaBIC': Delta_BIC,
             # Detection 
-            'Condition1': conditions_satisfied[0],
-            'Condition2': conditions_satisfied[1],
-            'Condition3': conditions_satisfied[2],
+            'Condition 1': conditions_satisfied[0],
+            'Condition 2': conditions_satisfied[1],
+            'Condition 3': conditions_satisfied[2],
+            'Condition 4': conditions_satisfied[3],
             'Detection' : detection,
             # astrometric signature 
-            'Astrometric Signature': float(alpha),
+            'Astrometric Signature': float(alpha), # [uas]
+            # star mass 
+            'Stellar Mass': float(m_star), # [M_solar]
+            # Scaling Factor
+            'Scaling Factor': float(scaling_factor), # unitless
+            # Distance
+            'Distance': float(calculate_distance(inj_params_1P[4])), # [pc]
+            # Semi-Major Axis 
+            'Semi-Major Axis': float(calculate_semi_major_axis(inj_params_1P[10], m_star)), # [AU]
+            # Sigma fov
+            'Sigma fov': float(errors[0]), # []
             # Noise
-            'Noise': noise,
+            'Noise': float(noise), # [uas]
             # Signal/Noise
-            'S/N': float(SN)
+            'S/N': float(SN) # [unitless]
         })
         # ----------------------------------------------------------------------------------------
        
         
     # Create a DataFrame from the data_list
     df = pd.DataFrame(data_list)
-
+    
+    # file path 
+    folder_path = '/Users/audreyburggraf/Desktop/THESIS/Data Files/'
+    file_path = folder_path + filename
+    
     # Save the DataFrame to a CSV file if save_to_file is True
     if save_to_file:
-        df.to_csv('testdata.csv', index=False)
-
-
-
-
-
-        
-        
-        
-        
+        df.to_csv(file_path, index=False)
+    
         
         
 # ---------------------------------------------------------------------------------------------------------------
@@ -452,29 +468,14 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
         (noise_ra, noise_dec, errors) = error_components
         # ----------------------------------------------------------------------------------------
         
-        # Find signal to noise - needs organization
+        # S/N
         # ----------------------------------------------------------------------------------------
-        # signal is astrometric_signal calculated with the injected parameters, or alpha 
-        # noise is ??
+        noise = errors[0] * np.sqrt(2) # quadature
         
-        # Calculate the standard deviation of noise in the RA and Dec directions
-        noise_ra_std = np.std(noise_ra)
-        noise_dec_std = np.std(noise_dec)
-
-        # Calculate the overall standard deviation of noise
-        overall_noise_std = np.sqrt(noise_ra_std**2 + noise_dec_std**2)  # Combine RA and Dec noise in quadrature
-
-        # Alternatively, you can calculate the average standard deviation
-#         average_noise_std = (noise_ra_std + noise_dec_std) / 2  # Average of RA and Dec noise standard deviations
-        noise = overall_noise_std 
-   
-        # it is scaled by a factor 
-        # 10**inj_params_1P = inj P [years]
-        # times_model.max() should = 5
         scaling_factor = np.sqrt(times_model.max()/10**inj_params_1P[10]) 
         
         # find S/N
-        SN = alpha/noise*scaling_factor
+        SN = alpha/noise*scaling_factor # unitless
         
         # ----------------------------------------------------------------------------------------
         
@@ -512,82 +513,5 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
         # Print the detection results and conditions satiftied if print_detection_results is True 
         if print_detection_results:
             print('Run #', i, ' Detection:', detection, 'Conditions satisfied:', conditions_satisfied)
-             
-        # ----------------------------------------------------------------------------------------
-        
-        # Append the data from each iteration to the data_list
-        # ----------------------------------------------------------------------------------------
-#         data_list.append({
-#             # Injected 0P 
-#             'Inj.0P alpha0': float(inj_params_0P[0]),  # [deg]
-#             'Inj.0P delta0': float(inj_params_0P[1]),  # [deg]
-#             'Inj.0P pmra'  : float(inj_params_0P[2]),  # [mas/year]
-#             'Inj.0P pmdec' : float(inj_params_0P[3]),  # [mas/year]
-#             'Inj.0P prlx'  : float(inj_params_0P[4]),  # [mas]
-#             # Injected 1P 
-#             'Inj.1P alpha0'  : float(inj_params_1P[0]),  # [deg]
-#             'Inj.1P delta0'  : float(inj_params_1P[1]),  # [deg]
-#             'Inj.1P pmra'    : float(inj_params_1P[2]),  # [mas/year]
-#             'Inj.1P pmdec'   : float(inj_params_1P[3]),  # [mas/year]
-#             'Inj.1P prlx'    : float(inj_params_1P[4]),  # [mas]
-#             'Inj.1P e'       : float(inj_params_1P[5]),  # [unitless]
-#             'Inj.1P omega'   : float(inj_params_1P[6]),  # [rad]
-#             'Inj.1P Omega'   : float(inj_params_1P[7]),  # [rad]
-#             'Inj.1P cosi'    : float(inj_params_1P[8]),  # [unitless]
-#             'Inj.1P log(m_p)': float(inj_params_1P[9]),  # [log10(MJ)]
-#             'Inj.1P log(P)'  : float(inj_params_1P[10]), # [log10(years)]
-#             'Inj.1P tp'      : float(inj_params_1P[11]), # [years]
-#             # Recovered 0P 
-#             'Rec.0P alpha0': fitted_params_0P[0], # [deg]
-#             'Rec.0P delta0': fitted_params_0P[1], # [deg]
-#             'Rec.0P pmra'  : fitted_params_0P[2], # [mas/year]
-#             'Rec.0P pmdec' : fitted_params_0P[3], # [mas/year]
-#             'Rec0P prlx'   : fitted_params_0P[4], # [mas]
-#             # Re.covered 1P
-#             'Rec.1P alpha0'  : fitted_params_1P[0],  # [deg]
-#             'Rec.1P delta0'  : fitted_params_1P[1],  # [deg]
-#             'Rec.1P pmra'    : fitted_params_1P[2],  # [mas/year]
-#             'Rec.1P pmdec'   : fitted_params_1P[3],  # [mas/year]
-#             'Rec.1P prlx'    : fitted_params_1P[4],  # [mas]
-#             'Rec.1P e'       : fitted_params_1P[5],  # [unitless]
-#             'Rec.1P omega'   : fitted_params_1P[6],  # [rad]
-#             'Rec.1P Omega'   : fitted_params_1P[7],  # [rad]
-#             'Rec.1P cosi'    : fitted_params_1P[8],  # [unitless]
-#             'Rec.1P log(m_p)': fitted_params_1P[9],  # [log10(MJ)]
-#             'Rec.1P log(P)'  : fitted_params_1P[10], # [log10(years)]
-#             'Rec.1P tp'      : fitted_params_1P[11], # [years]
-#             # Other
-#             'np_chi_sq': np_chi_sq,
-#             'wp_chi_sq': wp_chi_sq,
-#             # BIC values 
-#             'npBIC': np_BIC,
-#             'wpBIC': wp_BIC,
-#             'DeltaBIC': Delta_BIC,
-#             # Detection 
-#             'Condition1': conditions_satisfied[0],
-#             'Condition2': conditions_satisfied[1],
-#             'Condition3': conditions_satisfied[2],
-#             'Detection' : detection,
-#             # astrometric signature 
-#             'Astrometric Signature': float(alpha),
-#             # Noise
-#             'Noise': noise,
-#             # Signal/Noise
-#             'S/N': float(SN)
-#         })
-#         # ----------------------------------------------------------------------------------------
-        
-#         #--------------------
-#         print('Testing for saving data properly')
-#         print(fitted_params_1P[0])
-#         print(type(fitted_params_1P[0]))
-#         #--------------------
-        
-#     # Create a DataFrame from the data_list
-#     df = pd.DataFrame(data_list)
-
-#     # Save the DataFrame to a CSV file if save_to_file is True
-#     if save_to_file:
-#         df.to_csv('testdata.csv', index=False)
 # ---------------------------------------------------------------------------------------------------------------
 
