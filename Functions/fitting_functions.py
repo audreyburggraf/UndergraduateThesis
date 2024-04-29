@@ -424,8 +424,62 @@ def multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, filename, s
         
         
 # ---------------------------------------------------------------------------------------------------------------
+# Detection function
+# ---------------------------------------------------------------------------------------------------------------
+def detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, success_1P_fit, N): 
+    """
+    Determine the detection of a planet based on Bayesian Information Criterion (BIC) comparison and parameter fitting.
 
-def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, save_to_file = False, print_detection_results = False): 
+    Parameters:
+    np_chi_sq (float): Chi-squared value for the model without a planet.
+    wp_chi_sq (float): Chi-squared value for the model with a planet.
+    inj_params_1P (tuple): Injected parameters for the model with a planet.
+    fitted_params_1P (tuple): Fitted parameters for the model with a planet.
+    N (int): Number of time steps.
+
+    Returns:
+    tuple: A tuple containing the following:
+        - np_BIC (float): BIC value for the model without a planet.
+        - wp_BIC (float): BIC value for the model with a planet.
+        - Delta_BIC (float): Difference in BIC values between the two models.
+        - detection (int): Binary indicator (1 if detection criteria met, 0 otherwise).
+        - conditions_satisfied (numpy.ndarray): Binary array indicating if each condition for detection is satisfied.
+    """
+        
+    # Calculate the two BIC values 
+    BIC_0P = np_chi_sq + 5  * np.log(N) # gaussian equation -2*(-1/2 chi^2)
+    BIC_1P = wp_chi_sq + 12 * np.log(N)
+    
+    # Calculate Delta BIC 
+    Delta_BIC = BIC_1P - BIC_0P
+    
+    # Check to see if the four conditions were met 
+    # ---------------------------------------------------------------------------  
+    # Condition 1 : ΔBIC < -20
+    condition_1 = Delta_BIC < -20
+    
+    # Condition 2: Recovered P within 5% error of injected P
+    condition_2 = np.isclose(inj_params_1P[10][0], fitted_params_1P[10], rtol=0.05) 
+    
+    # Step 3: Recovered m_p within 5% error of injected m_p
+    condition_3 = np.isclose(inj_params_1P[9][0], fitted_params_1P[9], rtol=0.05)
+    
+    # Step 4: Did minimize do the fit successfully
+    condition_4 = (success_1P_fit == 1)
+    
+    conditions_satisfied = np.array([condition_1, condition_2, condition_3, condition_4], dtype=int)
+    
+    # pdb.set_trace()
+
+    # Combine all conditions into a binary array for detection
+    detection = np.all(conditions_satisfied).astype(int)
+    # ---------------------------------------------------------------------------  
+
+    
+    return (BIC_0P, BIC_1P, Delta_BIC, detection, conditions_satisfied)
+# ---------------------------------------------------------------------------------------------------------------
+
+def HARDCODED_multiple_fitting_function(m_planet_HARDCODED, P_HARDCODED,m_star_HARDCODED, df, N_synthetic, N_model, num_of_runs, filename, save_to_file = False, print_detection_results = False): 
     """
     Perform multiple fitting iterations and determine the detection of a planet for each iteration.
 
@@ -442,12 +496,12 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
     # Create an empty list to store data from each iteration
     data_list = []
     
-    for i in range(num_of_runs):
+    for i in tqdm(range(num_of_runs)):
     
         # Call the signal that finds parameters and makes the signal components and unpack its result statement 
         # ----------------------------------------------------------------------------------------
         inj_params_0P, inj_params_1P, synthetic_signal, model_signal, error_components, alpha, m_star = \
-            HARDCODED_find_signal_components(df, N_synthetic, N_model, print_params=False, print_alpha=False)
+            HARDCODED_find_signal_components(m_planet_HARDCODED, P_HARDCODED,m_star_HARDCODED, df, N_synthetic, N_model, print_params=True, print_alpha=True)
 
 
         # Unpack the result statement
@@ -468,10 +522,19 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
         (noise_ra, noise_dec, errors) = error_components
         # ----------------------------------------------------------------------------------------
         
-        # S/N
+        # Find signal to noise - needs organization
+        # ----------------------------------------------------------------------------------------
+        # signal is astrometric_signal calculated with the injected parameters, or alpha 
+        
+        
+        # THIS IS WHAT I WAS DOING FOR NOISE BEFORE 
         # ----------------------------------------------------------------------------------------
         noise = errors[0] * np.sqrt(2) # quadature
-        
+        # ----------------------------------------------------------------------------------------
+  
+        # it is scaled by a factor 
+        # 10**inj_params_1P = inj P [years]
+        # times_model.max() should = 5
         scaling_factor = np.sqrt(times_model.max()/10**inj_params_1P[10]) 
         
         # find S/N
@@ -481,8 +544,8 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
         
         # Calculate the observed function from the synthetic data and noise 
         # ----------------------------------------------------------------------------------------
-        signal_ra_obs  = prop_ra_synthetic  + parallax_ra_synthetic  + planetary_ra_synthetic  + noise_ra
-        signal_dec_obs = prop_dec_synthetic + parallax_dec_synthetic + planetary_dec_synthetic + noise_dec
+        signal_ra_obs  = prop_ra_synthetic  + parallax_ra_synthetic  + planetary_ra_synthetic  + noise_ra  # [uas]
+        signal_dec_obs = prop_dec_synthetic + parallax_dec_synthetic + planetary_dec_synthetic + noise_dec # [uas]
         # ----------------------------------------------------------------------------------------
         
         # Run the fitting functions 
@@ -495,7 +558,7 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
             times_synthetic)
 
         # One planet fit 
-        fitted_params_1P, wp_chi_sq = one_planet_fit(
+        fitted_params_1P, wp_chi_sq, success_1P_fit = one_planet_fit(
             inj_params_1P,
             m_star,
             signal_ra_obs, signal_dec_obs,
@@ -506,12 +569,15 @@ def HARDCODED_multiple_fitting_function(df, N_synthetic, N_model, num_of_runs, s
         
         # Finding detection result 
         # ----------------------------------------------------------------------------------------
-        detection_result = detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, N_synthetic)
+        detection_result = detection_function(np_chi_sq, wp_chi_sq, inj_params_1P, fitted_params_1P, success_1P_fit, N_synthetic)
 
         (np_BIC, wp_BIC, Delta_BIC, detection, conditions_satisfied) = detection_result
         
-        # Print the detection results and conditions satiftied if print_detection_results is True 
+        # Print the detection results and conditions satiftied if print_detection_results is True      
         if print_detection_results:
             print('Run #', i, ' Detection:', detection, 'Conditions satisfied:', conditions_satisfied)
-# ---------------------------------------------------------------------------------------------------------------
-
+             
+        
+        
+        
+        

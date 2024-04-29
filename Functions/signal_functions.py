@@ -414,7 +414,7 @@ def find_signal_components(df, N_synthetic, N_model, print_params= True, print_a
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
-def HARDCODED_find_signal_components(df, N_synthetic, N_model, print_params= True, print_alpha = True):  
+def HARDCODED_find_signal_components(m_planet_HARDCODED, P_HARDCODED,m_star_HARDCODED, df, N_synthetic, N_model, print_params= True, print_alpha = True):  
     """
     Calculate various astrometric signal components and noise/error components.
 
@@ -452,12 +452,12 @@ def HARDCODED_find_signal_components(df, N_synthetic, N_model, print_params= Tru
     # Find the planetary parameters using the planetary_params function 
     # In planetary_params the period range is hardcoded to be (0.01, 10 years)
     # The units in order will be [unitless, rad, rad, unitless, log10(M_Jup), log10(years), years]
-    e, omega, Omega, cos_i, log_m_planet, log_P, t_peri  = HARDCODED_planetary_params(n_object) 
+    e, omega, Omega, cos_i, log_m_planet, log_P, t_peri  = HARDCODED_planetary_params(m_planet_HARDCODED, P_HARDCODED, n_object) 
     
     
     # Find the Gaia parameters using the gaia_params function
     # The units in order will be [deg, deg, mas/year, mas.year, mas, M_sun]
-    alpha0, delta0, mu_alpha, mu_delta, parallax, m_star, x = HARDCODED_gaia_params(df, n_object)
+    alpha0, delta0, mu_alpha, mu_delta, parallax, m_star, x = HARDCODED_gaia_params(m_star_HARDCODED, df, n_object)
     
     # Arrays holding parameter values 
     parameters_0P = [alpha0, delta0, mu_alpha, mu_delta, parallax]

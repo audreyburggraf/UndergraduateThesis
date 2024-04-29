@@ -5,14 +5,20 @@ from numpy import cos, sin
 import rebound
 from scipy.interpolate import interp1d
 
+import pandas as pd
+
 # import unit conversions 
 from unit_conversion_functions import *
 from printing_functions import *
 
+import pdb
+from tqdm import tqdm
+import time
+
 
 # hardcoded planetary functions 
 # -----------------------------------------------------------------------------------------------------------------------------
-def HARDCODED_planetary_params(N):
+def HARDCODED_planetary_params(m_planet_HARDCODED, P_HARDCODED, N):
     """
     Hardcode in planetary parameters to check the fitting functions 
     We want a planet that will for sure be detected 
@@ -42,17 +48,17 @@ def HARDCODED_planetary_params(N):
     cos_i = np.random.uniform(0, 1, N)         # [unitless]
 
     # Planet mass
-    log_m_planet = np.array([np.log10(10)])         # [log10(M_Jupiter)]
+    log_m_planet = np.array([np.log10(m_planet_HARDCODED)])         # [log10(M_Jupiter)]
 
     # Period and time of perigee passage
-    P = np.array([2])                               # period is 2 years [years]
+    P = np.array([P_HARDCODED])                               # period is 2 years [years]
     log_P = np.log10(P)                 # log period is log10(2 years) [log10(years)]
     t_peri = np.random.uniform(0, P, N) # time of perigee passage is between 0 and 2 years [years]
 
     return e, omega, Omega, cos_i, log_m_planet, log_P, t_peri
 # -----------------------------------------------------------------------------------------------------------------------------
 # UPDATE DOCTRING
-def HARDCODED_gaia_params(df, N):
+def HARDCODED_gaia_params(m_star_HARDCODED, df, N):
     """
     Hardcode the gaia parameters to check the fitting functions 
     We want a bright star
@@ -86,7 +92,9 @@ def HARDCODED_gaia_params(df, N):
     mu_alpha = df.pmra[x]              # [mas]                        
     mu_delta = df.pmdec[x]             # [mas]                  
     parallax = df.parallax[x]          # [mas]
-    m_star = df.stellar_mass[x]        # [M_sun]
+    m_star = pd.Series(m_star_HARDCODED)        # [M_sun]
+    
+    #pdb.set_trace()
     
     #return alpha0, delta0, Delta_alpha_0, Delta_delta_0, mu_alpha, mu_delta, parallax, m_star, x 
     return alpha0.values, delta0.values, mu_alpha.values, mu_delta.values, parallax.values, m_star.values, x
